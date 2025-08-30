@@ -101,12 +101,13 @@ def post_inline_comment(repo: str, pr_number: int, commit_id: str, token: str):
                         "- Examine every changed line for correctness, style, readability, performance, security, and best practices.\n"
                         "- If the code is perfect with no issues, reply ONLY with the string 'NO_ISSUES'.\n"
                         "- Otherwise, output a JSON array of comments.\n"
-                        "- Each comment must have the following keys: { 'path': string, 'line': int, 'body': string }.\n"
+                        "- Each comment must have the following keys: { 'path': string, 'line': int, 'severity': string, 'body': string }.\n"
+                        "- Valid severity levels: '🟥 HIGH' (bug/security risk), '🟧 MEDIUM' (performance/maintainability), '🟩 LOW' (style/readability).\n"
                         "- The 'body' must be in Markdown format and wrap any code snippets with triple backticks.\n"
                         "- Each comment should explain the issue clearly and provide actionable advice.\n"
                         "- Only include comments that are truly actionable; do not add optional suggestions like unit tests or CI config unless it is critical.\n"
                         "- Do NOT write anything outside the JSON array or the string 'NO_ISSUES'.\n"
-                        "- Focus on being exhaustive for the code you see in the diff, even if it’s a minor improvement, but skip trivial cosmetic differences if the code is already readable."
+                        "- Focus on being exhaustive for the code you see in the diff, but skip trivial cosmetic differences if the code is already readable."
                     ),
                 },
                 {
@@ -135,13 +136,14 @@ def post_inline_comment(repo: str, pr_number: int, commit_id: str, token: str):
             path = c.get("path")
             line = c.get("line")
             body = c.get("body")
+            severity = c.get("severity", "🟧 MEDIUM")
 
             if not path or not line or not body:
                 print(f"⚠️ Skipping invalid comment: {c}")
                 continue
 
             payload = {
-                "body": f"{body}\n\n---\n_This comment was generated automatically by an AI assistant._",
+                "body": f"**Severity: {severity}**\n\n{body}\n\n---\n_This comment was generated automatically by an AI assistant._",
                 "commit_id": commit_id,
                 "path": path,
                 "side": "RIGHT",
@@ -183,7 +185,7 @@ def post_overall_comment(repo: str, pr_number: int, token: str):
                     "Always format any code in Markdown code blocks with syntax highlighting, like ```python ... ```.\n\n"
                     "Use this structure:\n"
                     "## ✅ Strengths\n- ...\n\n"
-                    "## ⚠️ Issues\n- ...\n\n"
+                    "## ⚠️ Issues\n- **[🟥 HIGH]** ...\n- **[🟧 MEDIUM]** ...\n- **[🟩 LOW]** ...\n\n"
                     "## 💡 Suggestions\n- ..."
                 ),
             },
