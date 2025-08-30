@@ -170,9 +170,7 @@ def post_overall_comment(repo: str, pr_number: int, token: str):
     diff_text = diff_response.text
 
     print(f"PR #{pr_number} in {repo} - diff content:\n")
-    print(diff_text[:5000])
-
-    diff_text_sample = diff_text[:5000]
+    print(diff_text[:3000])
 
     ai_response = client.chat.completions.create(
         model="gpt-5-mini",
@@ -181,7 +179,7 @@ def post_overall_comment(repo: str, pr_number: int, token: str):
                 "role": "system",
                 "content": (
                     "You are a code review assistant. Only provide actionable code review feedback. "
-                    "Do NOT include optional suggestions like unit tests or CI config. "
+                    "Do NOT include optional suggestions."
                     "Always format any code in Markdown code blocks with syntax highlighting, like ```python ... ```.\n\n"
                     "Use this structure:\n"
                     "## ✅ Strengths\n- ...\n\n"
@@ -191,13 +189,12 @@ def post_overall_comment(repo: str, pr_number: int, token: str):
             },
             {
                 "role": "user",
-                "content": f"Review this PR diff and suggest improvements:\n{diff_text_sample}",
+                "content": f"Review this PR diff and suggest improvements:\n{diff_text}",
             },
         ],
     )
 
     ai_suggestions = ai_response.choices[0].message.content
-    # print(f"AI Suggestions for PR #{pr_number}:\n{ai_suggestions}")
     post_pr_comment(repo, pr_number, ai_suggestions, token)
 
 
