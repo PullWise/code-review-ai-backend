@@ -8,6 +8,7 @@ import os
 import time
 import jwt
 import json
+import base64
 
 load_dotenv()
 
@@ -106,6 +107,7 @@ def post_inline_comment(
         Requirements:
         - Output ONLY JSON with this format: [{{ "path": str, "line": int, "severity": str, "body": str }}].
         - Severity must be one of: 🟥 HIGH, 🟧 MEDIUM, 🟩 LOW.
+        - For each comment, if a rule is violated, explicitly mention it using backticks with the format: Violation of `rule` (e.g., `security.no_hardcoded_secrets`).
         - Use actionable language with specific fixes.
         - Wrap code snippets in Markdown triple backticks.
         - If no issues found, reply ONLY with: "NO_ISSUES".
@@ -193,6 +195,7 @@ def post_overall_comment(repo: str, pr_number: int, token: str, rules: str):
     - Only provide actionable code review feedback.
     - Do NOT include optional suggestions unrelated to rules.
     - Always format code in Markdown blocks with syntax highlighting, like ```python ... ```.
+    - If a rule is violated, explicitly mention it using backticks with the format: Violation of `rule` (e.g., `security.no_hardcoded_secrets`).
     - Use this structure:
 
     ## ✅ Strengths
@@ -232,13 +235,14 @@ def load_rules_from_repo(repo: str, token: str, branch: str = "main"):
 
     if response.status_code == 200:
         file_data = response.json()
-        import base64
 
         decoded = base64.b64decode(file_data["content"]).decode("utf-8")
+        print("Getting rules from user")
         return json.loads(decoded)
 
     if os.path.exists(".pwconfig.json"):
         with open(".pwconfig.json", "r") as f:
+            print("Getting rules from default")
             return json.load(f)
 
     return {"rules": {}}
