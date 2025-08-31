@@ -1,0 +1,69 @@
+{
+  "rules": {
+    "security": {
+      "no_hardcoded_secrets": {
+        "enabled": true,
+        "level": "high",
+        "description": "Never commit API keys, passwords, or secrets directly in code."
+      },
+      "validate_inputs": {
+        "enabled": true,
+        "level": "high",
+        "description": "Always validate and sanitize user input to prevent injection attacks."
+      }
+    },
+    "performance": {
+      "avoid_nested_loops": {
+        "enabled": true,
+        "level": "medium",
+        "description": "Nested loops can lead to performance bottlenecks."
+      },
+      "prefer_list_comprehension": {
+        "enabled": true,
+        "level": "low",
+        "description": "List comprehensions are usually faster and more Pythonic than loops."
+      }
+    },
+    "style": {
+      "enforce_pep8": {
+        "enabled": true,
+        "level": "medium",
+        "description": "Follow PEP8 guidelines for readability and consistency."
+      },
+      "max_line_length": {
+        "enabled": true,
+        "level": "low",
+        "value": 100,
+        "description": "Keep lines under 100 characters for readability."
+      }
+    },
+    "documentation": {
+      "require_docstrings": {
+        "enabled": true,
+        "level": "medium",
+        "description": "Public classes and functions should include docstrings."
+      }
+    },
+    "maintainability": {
+      "limit_function_length": {
+        "enabled": true,
+        "level": "medium",
+        "value": 50,
+        "description": "Functions should not exceed 50 lines to stay maintainable."
+      },
+      "avoid_large_classes": {
+        "enabled": true,
+        "level": "low",
+        "value": 500,
+        "description": "Classes over 500 lines are hard to maintain."
+      }
+    },
+    "testing": {
+      "require_unit_tests": {
+        "enabled": true,
+        "level": "high",
+        "description": "All new features and bug fixes should include unit tests."
+      }
+    }
+  }
+}

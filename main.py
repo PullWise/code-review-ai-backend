@@ -75,7 +75,13 @@ _This review was generated automatically by an AI assistant._
     return resp.json()
 
 
-def post_inline_comment(repo: str, pr_number: int, commit_id: str, token: str):
+def post_inline_comment(
+    repo: str,
+    pr_number: int,
+    commit_id: str,
+    token: str,
+    rules: str,
+):
     headers = {
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3.diff",
@@ -89,26 +95,28 @@ def post_inline_comment(repo: str, pr_number: int, commit_id: str, token: str):
         file_header, *patch_lines = file_diff.split("\n")
         patch = "\n".join(patch_lines)
 
+        system_prompt = f"""
+        You are a strict and thorough code review assistant.
+        Your goal is to review GitHub pull request diffs with as much detail as possible. 
+        You MUST follow the review rules provided in JSON below when analyzing diffs:
+
+        RULES_JSON:
+        {rules}
+
+        Requirements:
+        - Output ONLY JSON with this format: [{{ "path": str, "line": int, "severity": str, "body": str }}].
+        - Severity must be one of: 🟥 HIGH, 🟧 MEDIUM, 🟩 LOW.
+        - Use actionable language with specific fixes.
+        - Wrap code snippets in Markdown triple backticks.
+        - If no issues found, reply ONLY with: "NO_ISSUES".
+        - Ignore trivial cosmetic diffs unless they violate the rules.
+        """.strip()
         ai_response = client.chat.completions.create(
             model="gpt-5-mini",
             messages=[
                 {
                     "role": "system",
-                    "content": (
-                        "You are an extremely thorough and strict code review assistant. "
-                        "Your goal is to review GitHub pull request diffs with as much detail as possible. "
-                        "Rules:\n"
-                        "- Examine every changed line for correctness, style, readability, performance, security, and best practices.\n"
-                        "- If the code is perfect with no issues, reply ONLY with the string 'NO_ISSUES'.\n"
-                        "- Otherwise, output a JSON array of comments.\n"
-                        "- Each comment must have the following keys: { 'path': string, 'line': int, 'severity': string, 'body': string }.\n"
-                        "- Valid severity levels: '🟥 HIGH' (bug/security risk), '🟧 MEDIUM' (performance/maintainability), '🟩 LOW' (style/readability).\n"
-                        "- The 'body' must be in Markdown format and wrap any code snippets with triple backticks.\n"
-                        "- Each comment should explain the issue clearly and provide actionable advice.\n"
-                        "- Only include comments that are truly actionable; do not add optional suggestions like unit tests or CI config unless it is critical.\n"
-                        "- Do NOT write anything outside the JSON array or the string 'NO_ISSUES'.\n"
-                        "- Focus on being exhaustive for the code you see in the diff, but skip trivial cosmetic differences if the code is already readable."
-                    ),
+                    "content": system_prompt,
                 },
                 {
                     "role": "user",
@@ -161,7 +169,7 @@ def post_inline_comment(repo: str, pr_number: int, commit_id: str, token: str):
                 print(f"💬 Comment posted on {path}:{line}")
 
 
-def post_overall_comment(repo: str, pr_number: int, token: str):
+def post_overall_comment(repo: str, pr_number: int, token: str, rules: str):
     diff_url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}"
     headers = {
         "Authorization": f"token {token}",
@@ -174,20 +182,37 @@ def post_overall_comment(repo: str, pr_number: int, token: str):
     print(f"PR #{pr_number} in {repo} - diff content:\n")
     print(diff_text[:3000])
 
+    system_prompt = f"""
+    You are a code review assistant. 
+    Follow these review rules strictly when analyzing the diff:
+
+    RULES_JSON:
+    {rules}
+
+    Instructions:
+    - Only provide actionable code review feedback.
+    - Do NOT include optional suggestions unrelated to rules.
+    - Always format code in Markdown blocks with syntax highlighting, like ```python ... ```.
+    - Use this structure:
+
+    ## ✅ Strengths
+    - ...
+
+    ## ⚠️ Issues
+    - **[🟥 HIGH]** ...
+    - **[🟧 MEDIUM]** ...
+    - **[🟩 LOW]** ...
+
+    ## 💡 Suggestions
+    - ...
+    """.strip()
+
     ai_response = client.chat.completions.create(
         model="gpt-5-mini",
         messages=[
             {
                 "role": "system",
-                "content": (
-                    "You are a code review assistant. Only provide actionable code review feedback. "
-                    "Do NOT include optional suggestions."
-                    "Always format any code in Markdown code blocks with syntax highlighting, like ```python ... ```.\n\n"
-                    "Use this structure:\n"
-                    "## ✅ Strengths\n- ...\n\n"
-                    "## ⚠️ Issues\n- **[🟥 HIGH]** ...\n- **[🟧 MEDIUM]** ...\n- **[🟩 LOW]** ...\n\n"
-                    "## 💡 Suggestions\n- ..."
-                ),
+                "content": system_prompt,
             },
             {
                 "role": "user",
@@ -198,6 +223,25 @@ def post_overall_comment(repo: str, pr_number: int, token: str):
 
     ai_suggestions = ai_response.choices[0].message.content
     post_pr_comment(repo, pr_number, ai_suggestions, token)
+
+
+def load_rules_from_repo(repo: str, token: str, branch: str = "main"):
+    url = f"https://api.github.com/repos/{repo}/contents/.pwconfig.json?ref={branch}"
+    headers = {"Authorization": f"token {token}"}
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        file_data = response.json()
+        import base64
+
+        decoded = base64.b64decode(file_data["content"]).decode("utf-8")
+        return json.loads(decoded)
+
+    if os.path.exists(".pwconfig.json"):
+        with open(".pwconfig.json", "r") as f:
+            return json.load(f)
+
+    return {"rules": {}}
 
 
 @app.post("/webhook")
@@ -215,9 +259,16 @@ async def github_webhook(request: Request):
         commit_id = data["pull_request"]["head"]["sha"]
 
         token = get_installation_token()
+        rules_config = load_rules_from_repo(repo=repo, token=token)
+        rules = json.dumps(rules_config, indent=2)
+        print(rules)
         post_inline_comment(
-            repo=repo, pr_number=pr_number, commit_id=commit_id, token=token
+            repo=repo,
+            pr_number=pr_number,
+            commit_id=commit_id,
+            token=token,
+            rules=rules,
         )
-        post_overall_comment(repo=repo, pr_number=pr_number, token=token)
+        post_overall_comment(repo=repo, pr_number=pr_number, token=token, rules=rules)
 
     return {"status": "ok"}

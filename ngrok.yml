@@ -1,0 +1,8 @@
+version: "3"
+agent:
+  authtoken: 31wettyO4v4ww2G19XdL3A9Dnm5_75qpgPka1vjgATqVykeir
+endpoints:
+  - name: server
+    url: exact-briefly-shepherd.ngrok-free.app
+    upstream:
+      url: 8000
